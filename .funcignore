@@ -1,0 +1,43 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+
+# Virtual environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local Azure Functions
+local.settings.json
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Zip archives (backups)
+*.zip
+
+# Database files
+*.db
+*.sqlite
+
+# Logs
+*.log
+

@@ -2,31 +2,15 @@ import logging
 import azure.functions as func
 import pyodbc
 import json
-import os
 import asyncio
 import concurrent.futures
 from azure.storage.queue import QueueClient
 from typing import Dict, Any
+from shared_utils import get_connection_string
 
 
 # Create a Blueprint for registering with the Functions host
 bp = func.Blueprint()
-
-def get_connection_string() -> str:
-    """Get the database connection string from environment variables."""
-    sql_conn_str = os.getenv("AZURE_SQL_CONNECTION_STRING")
-    sql_user = os.getenv("AZURE_SQL_DB_USER")
-    sql_pwd = os.getenv("AZURE_SQL_DB_PASSWORD")
-    sql_driver = os.getenv("AZURE_SQL_DRIVER")
-
-    return (f"Driver={sql_driver};"
-            f"Server={sql_conn_str};"
-            "Database=Traceability_TEST;"
-            f"Uid={sql_user};"
-            f"Pwd={sql_pwd};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Connection Timeout=60;")
 
 async def insert_traceability_log(data: Dict[str, Any], conn_str: str) -> None:
     """Insert data into traceability_log table using a separate thread."""
@@ -84,7 +68,7 @@ def execute_stored_procedure(conn_str: str, part_id: str, employee_id: str, stat
 @bp.function_name(name="QueueFunc")
 @bp.queue_trigger(
     arg_name="msg",
-    queue_name="operations-log-insert",
+    queue_name="operations-log-insert-test",
     connection="AzureWebJobsStorage"
 )
 async def queue_function(msg: func.QueueMessage) -> None:

@@ -1,29 +1,12 @@
-import os
 import json
 import logging
 import pyodbc
 import azure.functions as func
-import asyncio
 import concurrent.futures
 from typing import Dict, Tuple, Any, Optional
+from shared_utils import get_connection_string
 
 bp = func.Blueprint()
-
-def get_connection_string() -> str:
-    """Get the database connection string from environment variables."""
-    sql_conn_str = os.getenv("AZURE_SQL_CONNECTION_STRING")
-    sql_user = os.getenv("AZURE_SQL_DB_USER")
-    sql_pwd = os.getenv("AZURE_SQL_DB_PASSWORD")
-    sql_driver = os.getenv("AZURE_SQL_DRIVER")
-
-    return (f"Driver={sql_driver};"
-            f"Server={sql_conn_str};"
-            "Database=Traceability_TEST;"
-            f"Uid={sql_user};"
-            f"Pwd={sql_pwd};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Connection Timeout=60;")
 
 def fetch_part_status(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
     """Get the status data for the given part."""
@@ -79,7 +62,7 @@ def process_request(part_id: str, conn_str: str) -> Tuple[Dict[str, Any], int]:
         return {"error": str(e)}, 500
 
 @bp.function_name(name="ReadStatus")
-@bp.route(route="readstatus", methods=["GET"])
+@bp.route(route="readstatus", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def read_status(req: func.HttpRequest) -> func.HttpResponse:
     part_id = req.params.get('part_id')
     

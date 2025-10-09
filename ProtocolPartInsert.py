@@ -2,47 +2,13 @@ import logging
 import azure.functions as func
 import pyodbc
 import json
-import os
 import asyncio
 import concurrent.futures
 from typing import Dict, Any
+from shared_utils import get_connection_string
 
 # Create a Blueprint for registering with the Functions host
 bp = func.Blueprint()
-
-def get_connection_string() -> str:
-    """Get the database connection string from environment variables and log the process."""
-    logging.info("Attempting to get connection string for ProtocolPartInsert.")
-    sql_server = os.getenv("AZURE_SQL_CONNECTION_STRING")
-    sql_user = os.getenv("AZURE_SQL_DB_USER")
-    sql_pwd = os.getenv("AZURE_SQL_DB_PASSWORD")
-    sql_driver = os.getenv("AZURE_SQL_DRIVER", "{ODBC Driver 17 for SQL Server}")
-
-    if not all([sql_server, sql_user, sql_pwd, sql_driver]):
-        logging.error("DATABASE CONNECTION ERROR: One or more environment variables are not set for ProtocolPartInsert.")
-        missing_vars = [var for var, value in {
-            "AZURE_SQL_CONNECTION_STRING": sql_server,
-            "AZURE_SQL_DB_USER": sql_user,
-            "AZURE_SQL_DB_PASSWORD": "Set" if sql_pwd else None,
-            "AZURE_SQL_DRIVER": sql_driver
-        }.items() if not value]
-        logging.error(f"Missing environment variables: {', '.join(missing_vars)}")
-        raise ValueError("Database configuration is incomplete. Check Azure Function App settings.")
-
-    logging.info(f"Successfully loaded DB config for ProtocolPartInsert. Server='{sql_server}', User='{sql_user}'")
-    
-    # Opravený connection string
-    conn_str = (f"Driver={sql_driver};"
-                f"Server={sql_server};"
-                "Database=Traceability_TEST;"
-                f"Uid={sql_user};"
-                f"Pwd={sql_pwd};"
-                "Encrypt=yes;"
-                "TrustServerCertificate=no;"
-                "Connection Timeout=30;")
-    
-    logging.info(f"Connection string created successfully (password hidden)")
-    return conn_str
 
 def execute_stored_procedure(conn_str: str, part_id: str, employee_id: str, station_id: str, 
                             status: str, status_timestamp: str, shipping_id: str = None, 

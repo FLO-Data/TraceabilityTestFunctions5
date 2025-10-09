@@ -2,29 +2,13 @@ import logging
 import azure.functions as func
 import pyodbc
 import json
-import os
 import asyncio
 import concurrent.futures
 from typing import Dict, Any, Optional
+from shared_utils import get_connection_string
 
 # Create a Blueprint for registering with the Functions host
 bp = func.Blueprint()
-
-def get_connection_string() -> str:
-    """Get the database connection string from environment variables."""
-    sql_conn_str = os.getenv("AZURE_SQL_CONNECTION_STRING")
-    sql_user = os.getenv("AZURE_SQL_DB_USER")
-    sql_pwd = os.getenv("AZURE_SQL_DB_PASSWORD")
-    sql_driver = os.getenv("AZURE_SQL_DRIVER")
-
-    return (f"Driver={sql_driver};"
-            f"Server={sql_conn_str};"
-            "Database=Traceability_TEST;"
-            f"Uid={sql_user};"
-            f"Pwd={sql_pwd};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Connection Timeout=60;")
 
 async def check_gitter_id_exists(gitter_id: str, conn_str: str) -> Optional[Dict[str, Any]]:
     """Check if gitter_id exists in kovaci_linka_scans table using a separate thread."""

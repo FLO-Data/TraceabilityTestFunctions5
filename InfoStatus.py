@@ -1,18 +1,18 @@
-import os
 import json
 import logging
 import pyodbc
 import azure.functions as func
-import asyncio
 import concurrent.futures
 from typing import Dict, Tuple, Any, Optional
+from shared_utils import get_connection_string
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 bp = func.Blueprint()
+
 @bp.function_name(name="GetInfoStatus")
-@bp.route(route="InfoStatus", methods=["GET"])
+@bp.route(route="InfoStatus", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def InfoStatus(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("InfoStatus function processing a request")
     part_id = req.params.get('part_id')
@@ -77,22 +77,6 @@ def InfoStatus(req: func.HttpRequest) -> func.HttpResponse:
         status_code=200,
         mimetype="application/json"
     )
-
-def get_connection_string() -> str:
-    """Get the database connection string from environment variables."""
-    sql_conn_str = os.getenv("AZURE_SQL_CONNECTION_STRING")
-    sql_user = os.getenv("AZURE_SQL_DB_USER")
-    sql_pwd = os.getenv("AZURE_SQL_DB_PASSWORD")
-    sql_driver = os.getenv("AZURE_SQL_DRIVER")
-
-    return (f"Driver={sql_driver};"
-            f"Server={sql_conn_str};"
-            "Database=Traceability_TEST;"
-            f"Uid={sql_user};"
-            f"Pwd={sql_pwd};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Connection Timeout=60;")
 
 def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
     """Get the detailed status information for the given part from transaction_log."""
