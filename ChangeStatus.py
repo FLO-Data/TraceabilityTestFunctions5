@@ -18,6 +18,7 @@ async def update_gitter_status(data: Dict[str, Any], conn_str: str) -> None:
     status_timestamp = data.get("status_timestamp")
     shipping_id = data.get("shipping_id")
     current_workspace_id = data.get("current_workspace_id")
+    employee_id = data.get("employee_id")
     
     # Use thread pool for database operations
     with concurrent.futures.ThreadPoolExecutor() as pool:
@@ -29,11 +30,13 @@ async def update_gitter_status(data: Dict[str, Any], conn_str: str) -> None:
             status,
             status_timestamp,
             shipping_id,
-            current_workspace_id
+            current_workspace_id,
+            employee_id
         )
 
 def execute_stored_procedure(conn_str: str, station_id: str, status: str, 
-                            status_timestamp: str, shipping_id: str, current_workspace_id: str = None) -> None:
+                            status_timestamp: str, shipping_id: str, current_workspace_id: str = None, 
+                            employee_id: str = None) -> None:
     """Execute the stored procedure in a separate thread."""
     try:
         conn = pyodbc.connect(conn_str)
@@ -46,9 +49,10 @@ def execute_stored_procedure(conn_str: str, station_id: str, status: str,
                 @status = ?,
                 @status_timestamp = ?,
                 @shipping_id = ?,
-                @current_workspace_id = ?;
+                @current_workspace_id = ?,
+                @employee_id = ?;
             """,
-            (station_id, status, status_timestamp, shipping_id, current_workspace_id)
+            (station_id, status, status_timestamp, shipping_id, current_workspace_id, employee_id)
         )
         conn.commit()
         logging.info(f"Stored procedure executed successfully for station: {station_id}")
