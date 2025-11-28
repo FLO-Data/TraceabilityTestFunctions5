@@ -80,7 +80,7 @@ def authenticate_card(conn_str: str, card_id: str) -> Optional[Dict[str, Any]]:
             'employee_id': None
         }
 
-@bp.route(route="authenticatecard", methods=["GET", "POST"], auth_level=func.AuthLevel.ANONYMOUS)
+@bp.route(route="authenticatecard", methods=["GET", "POST"], auth_level=func.AuthLevel.FUNCTION)
 def AuthenticateCard(req: func.HttpRequest) -> func.HttpResponse:
     """
     HTTP endpoint for NFC/RFID card authentication
