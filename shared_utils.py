@@ -15,3 +15,5 @@ def get_connection_string() -> str:
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
             "Connection Timeout=60;")
+
+

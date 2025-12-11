@@ -85,22 +85,29 @@ def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
             # Query from transaction_log table with history
             info_query = """
                 SELECT 
-                    coalesce(tl.part_id, hps.part_id) as 'Part_ID',
-                    cst.station_name as 'Station',
-                    coalesce(tl.status, hps.status) as 'Rezim_Cteni',
-                    coalesce(tl.status_timestamp, hps.status_timestamp) as 'Timestamp',
-                    coalesce(tl.employee_id, hps.employee_id) as 'Employee',
-                    coalesce(tl.shipping_id, hps.shipping_id) as 'Gitterbox_ID',
-                    hps.status as 'History_Status',
-                    case when hps.status is not null then 'zmena statusu' else null end as zmena
-                FROM dbo.traceability_log tl
-                FULL OUTER JOIN dbo.h_part_status hps 
+                    COALESCE(tl.part_id, hps.part_id)          AS Part_ID,
+                    cst.station_name                           AS Station,
+                    COALESCE(tl.status, hps.status)            AS Rezim_Cteni,
+                    COALESCE(tl.status_timestamp, hps.status_timestamp) AS Timestamp,
+                    COALESCE(tl.employee_id, hps.employee_id)  AS Employee,
+                    COALESCE(tl.shipping_id, hps.shipping_id)  AS Gitterbox_ID,
+                    COALESCE(pp.protocol_id, NULL)             AS Protocol_ID,
+                    hps.status                                  AS History_Status,
+                    CASE WHEN hps.status IS NOT NULL THEN 'zmena statusu' ELSE NULL END AS zmena
+                FROM Traceability_TEST.dbo.traceability_log tl
+                FULL OUTER JOIN Traceability_TEST.dbo.h_part_status hps 
                     ON tl.part_id = hps.part_id 
                     AND tl.status_timestamp = hps.status_timestamp
-                LEFT JOIN dbo.c_station cst 
-                    ON cst.station_id = coalesce(tl.station_id, hps.station_id)
-                WHERE coalesce(tl.part_id, hps.part_id) = ?
-                ORDER BY coalesce(tl.status_timestamp, hps.status_timestamp) DESC
+                LEFT JOIN Traceability_TEST.dbo.c_station cst 
+                    ON cst.station_id = COALESCE(tl.station_id, hps.station_id)
+                LEFT JOIN (
+                    SELECT DISTINCT shipping_id, station_id, protocol_id 
+                    FROM Traceability_TEST.dbo.protocol_part
+                ) pp 
+                    ON pp.shipping_id = tl.shipping_id 
+                    AND pp.station_id = tl.station_id
+                WHERE COALESCE(tl.part_id, hps.part_id) = ?
+                ORDER BY COALESCE(tl.status_timestamp, hps.status_timestamp) DESC
             """
             cursor.execute(info_query, (part_id,))
             rows = cursor.fetchall()
@@ -118,8 +125,9 @@ def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
                     'timestamp': row[3],
                     'employee_id': row[4],
                     'gitterbox_id': row[5],
-                    'history_status': row[6],
-                    'zmena': row[7]
+                    'protocol_id': row[6],
+                    'history_status': row[7],
+                    'zmena': row[8]
                 })
             
             return {'part_history': result}

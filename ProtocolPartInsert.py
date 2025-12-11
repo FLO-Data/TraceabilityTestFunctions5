@@ -10,6 +10,31 @@ from shared_utils import get_connection_string
 # Create a Blueprint for registering with the Functions host
 bp = func.Blueprint()
 
+async def insert_protocol_part(data: Dict[str, Any], conn_str: str) -> None:
+    """Insert protocol part data into database using a separate thread."""
+    part_id = data.get("part_id")
+    employee_id = data.get("employee_id")
+    station_id = data.get("station_id")
+    status = data.get("status")
+    status_timestamp = data.get("status_timestamp")
+    shipping_id = data.get("shipping_id")
+    protocol_id = data.get("protocol_id")
+    
+    # Use thread pool for database operations
+    with concurrent.futures.ThreadPoolExecutor() as pool:
+        await asyncio.get_event_loop().run_in_executor(
+            pool,
+            execute_stored_procedure,
+            conn_str,
+            part_id,
+            employee_id,
+            station_id,
+            status,
+            status_timestamp,
+            shipping_id,
+            protocol_id
+        )
+
 def execute_stored_procedure(conn_str: str, part_id: str, employee_id: str, station_id: str, 
                             status: str, status_timestamp: str, shipping_id: str = None, 
                             protocol_id: str = None) -> None:
@@ -72,33 +97,8 @@ async def http_function(req: func.HttpRequest) -> func.HttpResponse:
 
         conn_str = get_connection_string()
 
-        # Unpack data for the async call
-        employee_id = req_body.get("employee_id")
-        station_id = req_body.get("station_id")
-        status = req_body.get("status")
-        status_timestamp = req_body.get("status_timestamp")
-        shipping_id = req_body.get("shipping_id")
-
-        # Opravené async volání
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        
-        with concurrent.futures.ThreadPoolExecutor() as pool:
-            await loop.run_in_executor(
-                pool,
-                execute_stored_procedure,
-                conn_str,
-                part_id,
-                employee_id,
-                station_id,
-                status,
-                status_timestamp,
-                shipping_id,
-                protocol_id
-            )
+        # Process request using the same async function as queue
+        await insert_protocol_part(req_body, conn_str)
         
         logging.info(f"Successfully processed request for part_id: {part_id}, protocol_id: {protocol_id}")
         return func.HttpResponse(
@@ -128,4 +128,42 @@ async def http_function(req: func.HttpRequest) -> func.HttpResponse:
             body=json.dumps({"error": "An internal server error occurred. Check logs for details."}),
             mimetype="application/json",
             status_code=500
-        ) 
+        )
+
+@bp.function_name(name="ProtocolPartInsertQueueFunc")
+@bp.queue_trigger(
+    arg_name="msg",
+    queue_name="protocol-part-insert-test",
+    connection="AzureWebJobsStorage"
+)
+async def queue_function(msg: func.QueueMessage) -> None:
+    """Process queue message for protocol part insert."""
+    conn_str = get_connection_string()
+    
+    try:
+        # Decode and parse the queue message
+        message_body = msg.get_body().decode("utf-8")
+        logging.info(f"Processing protocol part queue message: {message_body}")
+        
+        data = json.loads(message_body)
+        
+        # Validate required fields
+        part_id = data.get("part_id")
+        protocol_id = data.get("protocol_id")
+        if not part_id or not protocol_id:
+            logging.error(f"Invalid queue message. Missing part_id or protocol_id. Data: {data}")
+            raise ValueError("Queue message must contain 'part_id' and 'protocol_id'")
+        
+        # Process message asynchronously
+        await insert_protocol_part(data, conn_str)
+        logging.info(f"Successfully processed protocol part queue message for part_id: {part_id}, protocol_id: {protocol_id}")
+        
+    except json.JSONDecodeError as e:
+        logging.error(f"Invalid message format. Expected JSON. Error: {e}")
+        raise
+    except ValueError as ve:
+        logging.error(f"Validation error in queue message: {ve}")
+        raise
+    except Exception as e:
+        logging.error(f"Error processing protocol part queue message: {e}")
+        raise
