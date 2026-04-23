@@ -162,3 +162,4 @@ Pokud narazíš na problém, zkontroluj:
 2. Azure Portal → Function App → Configuration → Application settings
 3. Lokální test: `func start` a zkontroluj chybové hlášky
 
+

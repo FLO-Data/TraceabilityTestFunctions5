@@ -52,3 +52,4 @@ echo "   - https://$FUNCTION_APP_NAME.azurewebsites.net/api/test"
 echo "   - https://$FUNCTION_APP_NAME.azurewebsites.net/api/infostatus?part_id=TEST123"
 echo ""
 
+

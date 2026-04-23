@@ -12,6 +12,9 @@ from KovaciLinkaScan import bp as kovaci_linka_scan_bp
 from ProtocolPartInsert import bp as protocol_part_insert_bp
 from CheckInsert import bp as check_insert_bp
 from AuthenticateCard import bp as authenticate_card_bp
+from InfoRezim2 import bp as info_rezim2_bp
+from FurnaceReport import bp as furnace_report_bp
+from ControlStationInsert import bp as control_station_insert_bp
 
 app = func.FunctionApp()
 
@@ -25,6 +28,9 @@ app.register_functions(kovaci_linka_scan_bp)    # POST /api/KovaciLinkaScan
 app.register_functions(protocol_part_insert_bp) # POST /api/ProtocolPartInsert + Queue trigger (protocol-part-insert-test)
 app.register_functions(check_insert_bp)         # Queue trigger (operations-log-insert-test)
 app.register_functions(authenticate_card_bp)    # GET/POST /api/AuthenticateCard
+app.register_functions(info_rezim2_bp)          # GET /api/InfoRezim2
+app.register_functions(furnace_report_bp)       # GET /api/FurnaceReport
+app.register_functions(control_station_insert_bp)  # POST /api/ControlStationInsert
 
 # Simple test function
 @app.function_name(name="TestFunction")

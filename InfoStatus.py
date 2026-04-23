@@ -93,11 +93,15 @@ def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
                     COALESCE(tl.shipping_id, hps.shipping_id)  AS Gitterbox_ID,
                     COALESCE(pp.protocol_id, NULL)             AS Protocol_ID,
                     hps.status                                  AS History_Status,
-                    CASE WHEN hps.status IS NOT NULL THEN 'zmena statusu' ELSE NULL END AS zmena
+                    CASE WHEN hps.status IS NOT NULL THEN 'zmena statusu' ELSE NULL END AS zmena,
+                    ps.[melt]                                   AS Melt,
+                    ps.[part_type]                              AS Part_Type
                 FROM Traceability_TEST.dbo.traceability_log tl
                 FULL OUTER JOIN Traceability_TEST.dbo.h_part_status hps 
                     ON tl.part_id = hps.part_id 
                     AND tl.status_timestamp = hps.status_timestamp
+                LEFT JOIN Traceability_TEST.dbo.part_status ps
+                    ON ps.part_id = COALESCE(tl.part_id, hps.part_id)
                 LEFT JOIN Traceability_TEST.dbo.c_station cst 
                     ON cst.station_id = COALESCE(tl.station_id, hps.station_id)
                 LEFT JOIN (
@@ -127,7 +131,9 @@ def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
                     'gitterbox_id': row[5],
                     'protocol_id': row[6],
                     'history_status': row[7],
-                    'zmena': row[8]
+                    'zmena': row[8],
+                    'melt': row[9],
+                    'part_type': row[10]
                 })
             
             return {'part_history': result}

@@ -173,3 +173,6 @@ fetch('/api/auth/card', {
 
 V našom prípade som zmenil na ANONYMOUS pre testovanie, ale pre produkciu by to malo byť FUNCTION.
 
+
+
+

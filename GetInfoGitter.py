@@ -93,7 +93,8 @@ def fetch_gitter_parts(conn_str: str, shipping_id: str) -> Optional[List[Dict[st
                     ps.create_timestamp,
                     ps.employee_id,
                     ps.shipping_id,
-                    cst.station_name
+                    ps.[melt],
+                    ps.[part_type]
                 FROM dbo.part_status ps
                 LEFT JOIN dbo.c_station cst ON cst.station_id = ps.station_id
                 WHERE ps.shipping_id = ?
@@ -116,7 +117,9 @@ def fetch_gitter_parts(conn_str: str, shipping_id: str) -> Optional[List[Dict[st
                     'station_id': row[2],
                     'last_status': row[1],
                     'status_timestamp': row[3],
-                    'shipping_id': row[6]
+                    'shipping_id': row[6],
+                    'melt': row[7],
+                    'part_type': row[8]
                 })
             
             return result
@@ -133,12 +136,32 @@ def process_request(shipping_id: str, conn_str: str) -> Tuple[Dict[str, Any], in
             
             # Create response data structure (match production format exactly)
             if gitter_parts:
+                melt_values = sorted({
+                    str(part.get('melt')).strip()
+                    for part in gitter_parts
+                    if part.get('melt') not in (None, "")
+                })
+                part_type_values = sorted({
+                    str(part.get('part_type')).strip()
+                    for part in gitter_parts
+                    if part.get('part_type') not in (None, "")
+                })
                 response_data = {
-                    'gitter_history': gitter_parts
+                    'gitter_history': gitter_parts,
+                    'gitter_summary': {
+                        'parts_count': len(gitter_parts),
+                        'melts': melt_values,
+                        'part_types': part_type_values
+                    }
                 }
             else:
                 response_data = {
-                    'gitter_history': []
+                    'gitter_history': [],
+                    'gitter_summary': {
+                        'parts_count': 0,
+                        'melts': [],
+                        'part_types': []
+                    }
                 }
                 
             return response_data, 200
