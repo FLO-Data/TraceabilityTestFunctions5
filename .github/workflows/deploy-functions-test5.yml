@@ -1,0 +1,68 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Deploy Azure Function App (Python) - TraceabilityTestFunctions5
+# Trigger: push to `main` branch (auto deploy) + manual dispatch
+# Auth:    OIDC federated credential (User-assigned MSI:
+#          github-TraceabilityTestFunctions5) with Contributor role
+#          scoped ONLY to the TraceabilityTestFunctions5 function app.
+# Target:  TraceabilityTestFunctions5 (Python 3.11, Linux Consumption Y1,
+#          Sweden Central, RG TraceabilityByFLO)
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Deploy Azure Function App - TraceabilityTestFunctions5
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AZURE_FUNCTIONAPP_NAME: 'TraceabilityTestFunctions5'
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: '.'
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: 'Test'
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: 'Checkout repository'
+        uses: actions/checkout@v4
+
+      - name: 'Set up Python ${{ env.PYTHON_VERSION }}'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: 'Resolve dependencies into .python_packages'
+        shell: bash
+        run: |
+          pushd "${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}"
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt --target=".python_packages/lib/site-packages"
+          popd
+
+      - name: 'Login to Azure (OIDC)'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID_FUNC_TEST5 }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID_FUNC_TEST5 }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID_FUNC_TEST5 }}
+
+      - name: 'Deploy Azure Functions'
+        uses: Azure/functions-action@v1
+        id: deploy
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
+
+      - name: 'Logout from Azure'
+        if: always()
+        run: az logout
