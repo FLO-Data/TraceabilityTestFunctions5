@@ -39,6 +39,19 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: 'Install dependencies into .python_packages (build action expects this layout)'
+        # Pre Python Linux Consumption Function App MUSIA byť závislosti
+        # zbalené v .python_packages/lib/site-packages priamo v zip-e.
+        # Bez toho runtime nemôže importovať blueprints (žiadny pyodbc atď.)
+        # a `az functionapp function list` vráti 0.
+        shell: bash
+        run: |
+          set -e
+          python -m pip install --upgrade pip
+          pip install --target=".python_packages/lib/site-packages" -r requirements.txt
+          echo "--- .python_packages contents (top 10) ---"
+          ls -la .python_packages/lib/site-packages/ | head -15
+
       - name: 'Login to Azure (OIDC)'
         uses: azure/login@v2
         with:
@@ -46,14 +59,17 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID_FUNC_TEST5 }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID_FUNC_TEST5 }}
 
-      - name: 'Deploy Azure Functions (remote Oryx build)'
+      - name: 'Deploy Azure Functions (zip with bundled deps)'
         uses: Azure/functions-action@v1
         id: deploy
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-          scm-do-build-during-deployment: true
-          enable-oryx-build: true
+          # Závislosti sú už v .python_packages/, takže build na strane
+          # platformy nepotrebujeme. RBAC + Linux Consumption -> action
+          # nahodí zip do blob storage a nastaví WEBSITE_RUN_FROM_PACKAGE.
+          scm-do-build-during-deployment: false
+          enable-oryx-build: false
 
       - name: 'Post-deploy sanity check + retry (NO settings change)'
         # Linux Consumption Python má pomalý cold start a SCM platform sa po
