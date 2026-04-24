@@ -110,7 +110,7 @@ def fetch_parts_by_shipping(conn_str: str, input_value: str) -> Optional[List[Di
             ps.station_id AS current_station_id,
             cs.station_name AS current_station_name,
             ps.[melt] AS melt,
-            '12345' AS part_type,
+            ps.[part_type] AS part_type,
             h999.qc_forging_protocol,
             h999.lab_forging_protocol
         FROM parts_in_shipping p
