@@ -49,7 +49,7 @@ echo ""
 echo "🌐 URL: https://$FUNCTION_APP_NAME.azurewebsites.net"
 echo "📝 Test endpoints:"
 echo "   - https://$FUNCTION_APP_NAME.azurewebsites.net/api/test"
-echo "   - https://$FUNCTION_APP_NAME.azurewebsites.net/api/infostatus?part_id=TEST123"
+echo "   - https://$FUNCTION_APP_NAME.azurewebsites.net/api/InfoStatus?part_id=TEST123"
 echo ""
 
 
