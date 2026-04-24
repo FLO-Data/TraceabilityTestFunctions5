@@ -55,6 +55,53 @@ jobs:
           scm-do-build-during-deployment: true
           enable-oryx-build: true
 
+      - name: 'Post-deploy sanity check + auto-recovery'
+        # Linux Consumption Python občas zasekne starý balík cez WEBSITE_RUN_FROM_PACKAGE.
+        # Ak /api/test vráti 404, vyčistíme app setting + restart a skúsime znova.
+        # Bez tohto checku môže deploy "uspešne" prejsť ale endpointy vracajú 404.
+        shell: bash
+        run: |
+          set -e
+          APP="${{ env.AZURE_FUNCTIONAPP_NAME }}"
+          RG="TraceabilityByFLO"
+          URL="https://${APP,,}.azurewebsites.net/api/test"
+
+          echo "Wait 25s for cold start..."
+          sleep 25
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+          echo "Sanity check #1: GET $URL -> $STATUS"
+
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Functions are alive."
+            exit 0
+          fi
+
+          echo "⚠️  Sanity failed (status=$STATUS). Attempting recovery..."
+          echo "  → Removing WEBSITE_RUN_FROM_PACKAGE app setting"
+          az functionapp config appsettings delete \
+            --name "$APP" --resource-group "$RG" \
+            --setting-names WEBSITE_RUN_FROM_PACKAGE \
+            --output none || true
+
+          echo "  → Restarting function app"
+          az functionapp restart --name "$APP" --resource-group "$RG"
+
+          echo "  → Waiting 35s for warm-up after restart"
+          sleep 35
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+          echo "Sanity check #2: GET $URL -> $STATUS"
+
+          if [ "$STATUS" = "200" ]; then
+            echo "✅ Recovered after clearing WEBSITE_RUN_FROM_PACKAGE + restart."
+            exit 0
+          fi
+
+          echo "❌ Recovery failed. Function App is dead. Last status=$STATUS"
+          echo "Run: az functionapp log tail --name $APP --resource-group $RG"
+          exit 1
+
       - name: 'Logout from Azure'
         if: always()
         run: az logout
