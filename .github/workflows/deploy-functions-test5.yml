@@ -55,10 +55,13 @@ jobs:
           scm-do-build-during-deployment: true
           enable-oryx-build: true
 
-      - name: 'Post-deploy sanity check + auto-recovery'
-        # Linux Consumption Python občas zasekne starý balík cez WEBSITE_RUN_FROM_PACKAGE.
-        # Ak /api/test vráti 404, vyčistíme app setting + restart a skúsime znova.
-        # Bez tohto checku môže deploy "uspešne" prejsť ale endpointy vracajú 404.
+      - name: 'Post-deploy sanity check + retry (NO settings change)'
+        # Linux Consumption Python má pomalý cold start a SCM platform sa po
+        # deploye obnovuje. Robíme niekoľko pokusov s exponential backoff.
+        # POZOR: NIKDY nemažeme WEBSITE_RUN_FROM_PACKAGE — Azure/functions-action
+        # ho nastavuje na URL nového blob-u s naším kódom. Vymazaním by sme
+        # odpojili app od práve nasadenej verzie a spadla by do file system
+        # fallback-u (ak vôbec).
         shell: bash
         run: |
           set -e
@@ -66,40 +69,40 @@ jobs:
           RG="TraceabilityByFLO"
           URL="https://${APP,,}.azurewebsites.net/api/test"
 
-          echo "Wait 25s for cold start..."
-          sleep 25
+          # 5 pokusov: 20, 30, 45, 60, 90s = ~245s celkovo
+          DELAYS=(20 30 45 60 90)
+          STATUS=0
 
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
-          echo "Sanity check #1: GET $URL -> $STATUS"
+          for i in "${!DELAYS[@]}"; do
+            DELAY=${DELAYS[$i]}
+            ATTEMPT=$((i + 1))
+            echo "Attempt #${ATTEMPT}: sleeping ${DELAY}s..."
+            sleep "$DELAY"
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
+            echo "  GET $URL -> $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Functions are alive (attempt #${ATTEMPT})."
+              exit 0
+            fi
+          done
 
-          if [ "$STATUS" = "200" ]; then
-            echo "✅ Functions are alive."
-            exit 0
-          fi
-
-          echo "⚠️  Sanity failed (status=$STATUS). Attempting recovery..."
-          echo "  → Removing WEBSITE_RUN_FROM_PACKAGE app setting"
-          az functionapp config appsettings delete \
-            --name "$APP" --resource-group "$RG" \
-            --setting-names WEBSITE_RUN_FROM_PACKAGE \
-            --output none || true
-
-          echo "  → Restarting function app"
+          # Po 5 zlyhaniach skús jeden mäkký restart bez zmeny appsettings.
+          echo "⚠️  After 5 attempts still status=$STATUS. Soft restart..."
           az functionapp restart --name "$APP" --resource-group "$RG"
-
-          echo "  → Waiting 35s for warm-up after restart"
-          sleep 35
-
+          echo "  Waiting 60s after restart..."
+          sleep 60
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL")
-          echo "Sanity check #2: GET $URL -> $STATUS"
+          echo "Final check: $STATUS"
 
           if [ "$STATUS" = "200" ]; then
-            echo "✅ Recovered after clearing WEBSITE_RUN_FROM_PACKAGE + restart."
+            echo "✅ Recovered after soft restart."
             exit 0
           fi
 
-          echo "❌ Recovery failed. Function App is dead. Last status=$STATUS"
-          echo "Run: az functionapp log tail --name $APP --resource-group $RG"
+          echo "❌ Function App is unhealthy. Last status=$STATUS"
+          echo "Manual diagnosis:"
+          echo "  az functionapp log tail --name $APP --resource-group $RG"
+          echo "  az functionapp config appsettings list --name $APP -g $RG --query \"[?name=='WEBSITE_RUN_FROM_PACKAGE']\""
           exit 1
 
       - name: 'Logout from Azure'
