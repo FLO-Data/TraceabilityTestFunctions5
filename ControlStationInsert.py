@@ -12,6 +12,23 @@ from shared_utils import get_connection_string
 bp = func.Blueprint()
 
 
+ALLOWED_STATUSES = {"OK", "NOK"}
+DEFAULT_STATUS = "OK"
+
+
+def _normalize_status(raw_status: Any) -> str:
+    """Normalize status to 'OK' / 'NOK'. Defaults to 'OK' if missing/invalid.
+
+    Trigger trg_Control_Station_Complete na DB strane vyhodnocuje
+    Control_check podľa status='OK' (najnovší záznam per station). NOK
+    záznamy idu do tabulky pre auditnú stopu, ale do počtu sa neráta.
+    """
+    if raw_status is None:
+        return DEFAULT_STATUS
+    s = str(raw_status).strip().upper()
+    return s if s in ALLOWED_STATUSES else DEFAULT_STATUS
+
+
 async def insert_control_station(data: Dict[str, Any], conn_str: str) -> None:
     """Insert control station data into database using a separate thread."""
     station_id = data.get("station_id")
@@ -23,6 +40,7 @@ async def insert_control_station(data: Dict[str, Any], conn_str: str) -> None:
     part_type = data.get("part_type")
     melt = data.get("melt")
     control_group_id = data.get("control_group_id")
+    status = _normalize_status(data.get("status"))
 
     with concurrent.futures.ThreadPoolExecutor() as pool:
         await asyncio.get_event_loop().run_in_executor(
@@ -37,13 +55,15 @@ async def insert_control_station(data: Dict[str, Any], conn_str: str) -> None:
             operator_id,
             part_type,
             melt,
-            control_group_id
+            control_group_id,
+            status,
         )
 
 
 def execute_insert(conn_str: str, station_id: int, part_id: str, sample: int,
                    check_timestamp: str, shipping_id: str, operator_id: str,
-                   part_type: int, melt: str, control_group_id: int) -> None:
+                   part_type: int, melt: str, control_group_id: int,
+                   status: str) -> None:
     """Execute insert into Control_Station."""
     try:
         with pyodbc.connect(conn_str, timeout=30) as conn:
@@ -59,9 +79,10 @@ def execute_insert(conn_str: str, station_id: int, part_id: str, sample: int,
                     operator_id,
                     part_type,
                     melt,
-                    control_group_id
+                    control_group_id,
+                    status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 station_id,
                 part_id,
@@ -71,10 +92,14 @@ def execute_insert(conn_str: str, station_id: int, part_id: str, sample: int,
                 operator_id,
                 part_type,
                 melt,
-                control_group_id
+                control_group_id,
+                status,
             )
             conn.commit()
-            logging.info(f"Control_Station insert ok for part_id: {part_id}")
+            logging.info(
+                f"Control_Station insert ok for part_id={part_id} "
+                f"station_id={station_id} status={status}"
+            )
     except Exception as exc:
         logging.error(f"Control_Station insert failed for part_id {part_id}: {exc}", exc_info=True)
         raise
