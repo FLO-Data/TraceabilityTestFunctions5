@@ -13,30 +13,36 @@ def fetch_part_status(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
     with pyodbc.connect(conn_str) as conn:
         with conn.cursor() as cursor:
             # Get the current status from part_status table
+            # Control_check (BIT) sa pridava od 2026-04-27: pouzivane FE
+            # validacnymi pravidlami napr. pre Tryskani (st.4) — povolit
+            # iba ak presli vsetky quality kontroly (Control_check = 1).
             status_query = """
-                SELECT last_status, station_id, status_timestamp, create_timestamp, employee_id,shipping_id
-                FROM dbo.part_status 
+                SELECT last_status, station_id, status_timestamp, create_timestamp,
+                       employee_id, shipping_id, Control_check
+                FROM dbo.part_status
                 WHERE part_id = ?
             """
             cursor.execute(status_query, part_id)
             status_row = cursor.fetchone()
-            
+
             if not status_row:
                 return None
-            
-            # Convert station_id to string to match frontend expectations
+
             station_id = str(status_row[1]) if status_row[1] is not None else None
-            
+            control_check_raw = status_row[6]
+            control_check_bool = bool(control_check_raw) if control_check_raw is not None else False
+
             result = {
                 'part_id': part_id,
-                'latest_status': status_row[0],      # last_status
-                'latest_workspace_id': station_id,    # station_id as string
-                'status_timestamp': status_row[2],    # status_timestamp
-                'create_timestamp': status_row[3],    # create_timestamp
-                'employee_id': status_row[4],          # employee_id
-                'shipping_id': status_row[5]          # shipping_id
+                'latest_status': status_row[0],
+                'latest_workspace_id': station_id,
+                'status_timestamp': status_row[2],
+                'create_timestamp': status_row[3],
+                'employee_id': status_row[4],
+                'shipping_id': status_row[5],
+                'control_check': control_check_bool,
             }
-            
+
             return result
 
 def process_request(part_id: str, conn_str: str) -> Tuple[Dict[str, Any], int]:
