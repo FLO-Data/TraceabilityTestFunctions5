@@ -29,12 +29,42 @@ def _normalize_status(raw_status: Any) -> str:
     return s if s in ALLOWED_STATUSES else DEFAULT_STATUS
 
 
+def _parse_timestamp(raw: Any) -> datetime.datetime:
+    """Parse ISO timestamp from request to a Python datetime.
+
+    Dôvod: pyodbc + MSSQL datetime má presnosť 3 desatinných miest.
+    Posielať ISO string s mikrosekundami (napr. '2026-04-27T07:53:00.123456')
+    spôsobí 'Conversion failed' (chyba 241). Parsovaním na native datetime
+    + odovzdaním cez parameter pyodbc serializuje hodnotu binárne a
+    SQL Server ju akceptuje vždy.
+    """
+    if isinstance(raw, datetime.datetime):
+        return raw
+    if not raw:
+        return datetime.datetime.utcnow().replace(microsecond=0)
+    s = str(raw).strip()
+    # JS toISOString() končí 'Z' — Python <3.11 to v fromisoformat nepozná
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        dt = datetime.datetime.fromisoformat(s)
+    except ValueError:
+        logging.warning(f"Cannot parse check_timestamp={raw!r}, using utcnow()")
+        return datetime.datetime.utcnow().replace(microsecond=0)
+    # MSSQL datetime má presnosť 3 ms — orežeme aby sme nestrácali pri konverzii
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+    # zaokrúhlime mikrosekundy na milisekundy (3 digit)
+    micro = (dt.microsecond // 1000) * 1000
+    return dt.replace(microsecond=micro)
+
+
 async def insert_control_station(data: Dict[str, Any], conn_str: str) -> None:
     """Insert control station data into database using a separate thread."""
     station_id = data.get("station_id")
     part_id = data.get("part_id")
     sample = data.get("sample", 1)
-    check_timestamp = data.get("check_timestamp") or datetime.datetime.utcnow().isoformat()
+    check_timestamp = _parse_timestamp(data.get("check_timestamp"))
     shipping_id = data.get("shipping_id")
     operator_id = data.get("operator_id") or data.get("employee_id")
     part_type = data.get("part_type")
@@ -61,7 +91,7 @@ async def insert_control_station(data: Dict[str, Any], conn_str: str) -> None:
 
 
 def execute_insert(conn_str: str, station_id: int, part_id: str, sample: int,
-                   check_timestamp: str, shipping_id: str, operator_id: str,
+                   check_timestamp: datetime.datetime, shipping_id: str, operator_id: str,
                    part_type: int, melt: str, control_group_id: int,
                    status: str) -> None:
     """Execute insert into Control_Station."""
