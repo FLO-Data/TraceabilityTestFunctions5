@@ -1,0 +1,13 @@
+-- =============================================================================
+-- TEST DB: Povolení předchozí stanice 1 (Kovácí linka, OK) pro vstup na
+-- Test tvrdosti (stanice 2) — bez nutnosti KKK/LAB kontrol.
+-- =============================================================================
+-- Aplikujte na Traceability_TEST (Azure SQL). Zálohujte trigger před změnou.
+-- Aktuální celý text triggeru je v repu:
+--   BackEnd/TraceabilityByFLO-backend/database/trigger clasic
+-- Hledejte sekci "---Test Tvrdosti---" a v IF EXISTS přidejte OR větev:
+--   (ps.station_id = '1' and ps.last_status = 'OK')
+-- =============================================================================
+-- Rychlá kontrola po nasazení (mělo by vrátit definici s '1'):
+--   SELECT OBJECT_DEFINITION(OBJECT_ID('dbo.trg_Insert_Update_Part_Status'));
+-- =============================================================================
