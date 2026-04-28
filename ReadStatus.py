@@ -12,13 +12,14 @@ def fetch_part_status(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
     """Get the status data for the given part."""
     with pyodbc.connect(conn_str) as conn:
         with conn.cursor() as cursor:
-            # Get the current status from part_status table
-            # Control_check (BIT) sa pridava od 2026-04-27: pouzivane FE
-            # validacnymi pravidlami napr. pre Tryskani (st.4) — povolit
-            # iba ak presli vsetky quality kontroly (Control_check = 1).
+            # Get the current status from part_status table.
+            # Control_check (BIT, od 2026-04-27): povoluje vstup na Tryskani (st.4)
+            #   — vyzaduje OK na 4 KKK kontrolach (stations 15-18).
+            # Quality_check (BIT, od 2026-04-28): povoluje vstup na Kontrolu kvality (st.5)
+            #   — vyzaduje OK na vsetkych 6 kontrolach (stations 15-20, vratane LAB_trhacka a LAB_makro).
             status_query = """
                 SELECT last_status, station_id, status_timestamp, create_timestamp,
-                       employee_id, shipping_id, Control_check
+                       employee_id, shipping_id, Control_check, Quality_check
                 FROM dbo.part_status
                 WHERE part_id = ?
             """
@@ -31,6 +32,8 @@ def fetch_part_status(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
             station_id = str(status_row[1]) if status_row[1] is not None else None
             control_check_raw = status_row[6]
             control_check_bool = bool(control_check_raw) if control_check_raw is not None else False
+            quality_check_raw = status_row[7]
+            quality_check_bool = bool(quality_check_raw) if quality_check_raw is not None else False
 
             result = {
                 'part_id': part_id,
@@ -41,6 +44,7 @@ def fetch_part_status(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
                 'employee_id': status_row[4],
                 'shipping_id': status_row[5],
                 'control_check': control_check_bool,
+                'quality_check': quality_check_bool,
             }
 
             return result
