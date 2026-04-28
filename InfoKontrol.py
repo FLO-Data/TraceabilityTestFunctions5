@@ -37,9 +37,9 @@ def fetch_info(part_id: str) -> dict:
 
             cur.execute(
                 """
-                SELECT x.station_id, x.status, x.check_timestamp
+                SELECT x.station_id, x.status, x.check_timestamp, x.operator_id
                 FROM (
-                    SELECT station_id, status, check_timestamp, id,
+                    SELECT station_id, status, check_timestamp, operator_id, id,
                            ROW_NUMBER() OVER (
                                PARTITION BY part_id, station_id
                                ORDER BY check_timestamp DESC, id DESC
@@ -52,20 +52,24 @@ def fetch_info(part_id: str) -> dict:
                 """,
                 (part_id,),
             )
-            latest_rows = {int(r[0]): (r[1], r[2]) for r in cur.fetchall()}
+            latest_rows = {
+                int(r[0]): (r[1], r[2], r[3]) for r in cur.fetchall()
+            }
 
     by_station = {}
     for sid, wid, label, for_try, for_kk in STATION_DEFS:
-        st, ts = latest_rows.get(sid, (None, None))
+        st, ts, op_raw = latest_rows.get(sid, (None, None, None))
         st_up = (st or "").strip().upper() if st else None
         if st_up not in ("OK", "NOK"):
             st_up = None
+        op_str = (str(op_raw).strip() if op_raw is not None else "") or None
         by_station[sid] = {
             "station_id": sid,
             "workplace_id": wid,
             "label": label,
             "status": st_up,
             "check_timestamp": ts.isoformat() if ts else None,
+            "operator_id": op_str,
             "counts_for_tryskani_gate": for_try,
             "counts_for_kvalita_gate": for_kk,
             "missing_for_tryskani": for_try and st_up != "OK",
