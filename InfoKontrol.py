@@ -27,6 +27,35 @@ def fetch_info(part_id: str) -> dict:
         with conn.cursor() as cur:
             cur.execute(
                 """
+                SELECT CASE WHEN
+                    EXISTS (SELECT 1 FROM dbo.part_status WHERE part_id = ?)
+                    OR EXISTS (SELECT 1 FROM dbo.traceability_log WHERE part_id = ?)
+                    OR EXISTS (SELECT 1 FROM dbo.Control_Station WHERE part_id = ?)
+                THEN 1 ELSE 0 END
+                """,
+                (part_id, part_id, part_id),
+            )
+            part_found_row = cur.fetchone()
+            if not part_found_row or int(part_found_row[0]) != 1:
+                return {
+                    "part_id": part_id,
+                    "part_found": False,
+                    "message": (
+                        "Díl s tímto číslem v databázi traceability neexistuje "
+                        "(není v part_status, ani v logu procesů, ani v kontrolách)."
+                    ),
+                    "part_status_found": False,
+                    "last_process_station_id": None,
+                    "last_process_status": None,
+                    "control_check": False,
+                    "quality_check": False,
+                    "controls": [],
+                    "missing_labels_for_tryskani": [],
+                    "missing_labels_for_kvalita": [],
+                }
+
+            cur.execute(
+                """
                 SELECT last_status, station_id, Control_check, Quality_check
                 FROM dbo.part_status
                 WHERE part_id = ?
@@ -84,6 +113,7 @@ def fetch_info(part_id: str) -> dict:
 
     return {
         "part_id": part_id,
+        "part_found": True,
         "part_status_found": ps is not None,
         "last_process_station_id": str(ps[1]) if ps and ps[1] is not None else None,
         "last_process_status": ps[0] if ps else None,
