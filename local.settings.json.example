@@ -12,7 +12,11 @@
     "AZURE_SQL_DB_PASSWORD": "<db_password>",
     "AZURE_STORAGE_CONNECTION_STRING": "<storage_connection_string>",
     "AZURE_QUEUE_NAME": "operations-log-insert",
-    "APPLICATIONINSIGHTS_CONNECTION_STRING": "<appinsights_connection_string>"
+    "APPLICATIONINSIGHTS_CONNECTION_STRING": "<appinsights_connection_string>",
+    "ROCKQ_DB_SERVER": "<rockq_server_hostname>",
+    "ROCKQ_DB_USER": "<rockq_db_user>",
+    "ROCKQ_DB_PASSWORD": "<rockq_db_password>",
+    "ROCKQ_DB_NAME": "saf.rockq.io"
   },
   "ConnectionStrings": {},
   "Host": {}

@@ -9,4 +9,5 @@ azure-storage-queue
 pyodbc
 aiohttp
 aiodns
-typing-extensions  
+typing-extensions
+pymssql
