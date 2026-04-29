@@ -26,8 +26,10 @@ def furnace_report(req: func.HttpRequest) -> func.HttpResponse:
             status_code=400
         )
 
+    db = req.params.get('db', 'prod')
     try:
         conn_str = get_connection_string()
+        logging.info(f"FurnaceReport using db={db}")
     except Exception as e:
         logging.error(f"Error building connection string: {str(e)}")
         return func.HttpResponse(
@@ -37,9 +39,10 @@ def furnace_report(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     try:
+        db_name = "Traceability" if db == "prod" else "Traceability_TEST"
         with pyodbc.connect(conn_str) as conn:
             with conn.cursor() as cursor:
-                query = """
+                query = f"""
                     SELECT
                         [id],
                         [DMC],
@@ -58,7 +61,7 @@ def furnace_report(req: func.HttpRequest) -> func.HttpResponse:
                         [MeasurementsPerMinute],
                         [created_timestamp],
                         [updated_timestamp]
-                    FROM [Traceability].[dbo].[furnace_temperature_report]
+                    FROM [{db_name}].[dbo].[furnace_temperature_report]
                     WHERE [DMC] = ? OR [PartID] = ?
                     ORDER BY [InsertTime] ASC
                 """

@@ -11,6 +11,7 @@ logging.basicConfig(level=logging.INFO)
 
 bp = func.Blueprint()
 
+
 @bp.function_name(name="GetInfoStatus")
 @bp.route(route="InfoStatus", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def InfoStatus(req: func.HttpRequest) -> func.HttpResponse:
@@ -37,9 +38,10 @@ def InfoStatus(req: func.HttpRequest) -> func.HttpResponse:
     logging.info(f"Processing request for part_id: {part_id}")
     
     # Get the connection string from environment variables
+    db = req.params.get('db', 'prod')
     try:
         conn_str = get_connection_string()
-        logging.info("Successfully built connection string")
+        logging.info(f"Successfully built connection string (db={db})")
     except Exception as e:
         logging.error(f"Error building connection string: {str(e)}")
         return func.HttpResponse(
@@ -51,7 +53,7 @@ def InfoStatus(req: func.HttpRequest) -> func.HttpResponse:
     try:
         # Process request with concurrent database operations
         logging.info("Starting database query")
-        response_data, status_code = process_request(part_id, conn_str)
+        response_data, status_code = process_request(part_id, conn_str, db)
         logging.info(f"Query completed with status code: {status_code}")
         
         if status_code != 200:
@@ -78,12 +80,13 @@ def InfoStatus(req: func.HttpRequest) -> func.HttpResponse:
         mimetype="application/json"
     )
 
-def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
+def fetch_part_info(conn_str: str, part_id: str, db: str = "prod") -> Optional[Dict[str, Any]]:
     """Get the detailed status information for the given part from transaction_log."""
     with pyodbc.connect(conn_str) as conn:
         with conn.cursor() as cursor:
             # Query from transaction_log table with history
-            info_query = """
+            db_name = "Traceability" if db == "prod" else "Traceability_TEST"
+            info_query = f"""
                 SELECT 
                     COALESCE(tl.part_id, hps.part_id)          AS Part_ID,
                     cst.station_name                           AS Station,
@@ -96,17 +99,17 @@ def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
                     CASE WHEN hps.status IS NOT NULL THEN 'zmena statusu' ELSE NULL END AS zmena,
                     ps.[melt]                                   AS Melt,
                     ps.[part_type]                              AS Part_Type
-                FROM Traceability_TEST.dbo.traceability_log tl
-                FULL OUTER JOIN Traceability_TEST.dbo.h_part_status hps 
+                FROM {db_name}.dbo.traceability_log tl
+                FULL OUTER JOIN {db_name}.dbo.h_part_status hps 
                     ON tl.part_id = hps.part_id 
                     AND tl.status_timestamp = hps.status_timestamp
-                LEFT JOIN Traceability_TEST.dbo.part_status ps
+                LEFT JOIN {db_name}.dbo.part_status ps
                     ON ps.part_id = COALESCE(tl.part_id, hps.part_id)
-                LEFT JOIN Traceability_TEST.dbo.c_station cst 
+                LEFT JOIN {db_name}.dbo.c_station cst 
                     ON cst.station_id = COALESCE(tl.station_id, hps.station_id)
                 LEFT JOIN (
                     SELECT DISTINCT shipping_id, station_id, protocol_id 
-                    FROM Traceability_TEST.dbo.protocol_part
+                    FROM {db_name}.dbo.protocol_part
                 ) pp 
                     ON pp.shipping_id = tl.shipping_id 
                     AND pp.station_id = tl.station_id
@@ -138,12 +141,12 @@ def fetch_part_info(conn_str: str, part_id: str) -> Optional[Dict[str, Any]]:
             
             return {'part_history': result}
 
-def process_request(part_id: str, conn_str: str) -> Tuple[Dict[str, Any], int]:
+def process_request(part_id: str, conn_str: str, db: str = "prod") -> Tuple[Dict[str, Any], int]:
     """Process the request with concurrent database operations using thread pool."""
     try:
         # Run info operations
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-            part_info_future = executor.submit(fetch_part_info, conn_str, part_id)
+            part_info_future = executor.submit(fetch_part_info, conn_str, part_id, db)
             
             # Get info data result
             part_info = part_info_future.result()
