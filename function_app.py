@@ -14,7 +14,7 @@ from CheckInsert import bp as check_insert_bp
 from AuthenticateCard import bp as authenticate_card_bp
 from InfoRezim2 import bp as info_rezim2_bp
 from FurnaceReport import bp as furnace_report_bp
-from LaserReport import bp as laser_report_bp
+from RqtReport import bp as rqt_report_bp
 from ControlStationInsert import bp as control_station_insert_bp
 from InfoKontrol import bp as info_kontrol_bp
 
@@ -32,7 +32,7 @@ app.register_functions(check_insert_bp)         # Queue trigger (operations-log-
 app.register_functions(authenticate_card_bp)    # GET/POST /api/AuthenticateCard
 app.register_functions(info_rezim2_bp)          # GET /api/InfoRezim2
 app.register_functions(furnace_report_bp)       # GET /api/FurnaceReport
-app.register_functions(laser_report_bp)         # GET /api/LaserReport
+app.register_functions(rqt_report_bp)           # GET /api/RqtReport
 app.register_functions(control_station_insert_bp)  # POST /api/ControlStationInsert
 app.register_functions(info_kontrol_bp)             # GET /api/InfoKontrol
 

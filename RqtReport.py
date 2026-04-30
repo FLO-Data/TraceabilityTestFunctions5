@@ -18,10 +18,10 @@ def _get_rockq_connection():
     return pymssql.connect(server=server, user=user, password=password, database=database, login_timeout=15)
 
 
-@bp.function_name(name="GetLaserReport")
-@bp.route(route="LaserReport", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
-def laser_report(req: func.HttpRequest) -> func.HttpResponse:
-    logging.info("LaserReport function processing a request")
+@bp.function_name(name="GetRqtReport")
+@bp.route(route="RqtReport", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
+def rqt_report(req: func.HttpRequest) -> func.HttpResponse:
+    logging.info("RqtReport function processing a request")
 
     dpm = (
         req.params.get("dpm")
@@ -53,26 +53,32 @@ def laser_report(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     try:
+        # One result row per (unique_trace_id, pos_workplace) — i.e. one row per
+        # work-station the part actually visited (SW3-Laser, SW3-CNC, Quality
+        # control, Packaging Kamenice, Relocation, ...). Laser fields are only
+        # populated on the SW3-Laser row; for every other station they are NULL.
         query = """
             SELECT
                 MAX(CASE WHEN v.header_attribute_id = 2131 THEN v.header_value_string END) AS dpm,
-                v.obj_current_workplace                                                      AS station,
+                v.pos_workplace                                                              AS station,
                 MAX(CASE WHEN v.header_attribute_id = 2140 THEN v.header_value_string END) AS operator,
                 MIN(v.header_creation_time)                                                  AS date_in,
                 MAX(v.header_creation_time)                                                  AS date_out,
-                COALESCE(
-                    MAX(CASE WHEN v.header_attribute_id = 10001 THEN v.header_value_string END),
-                    MAX(CASE WHEN v.header_attribute_id = 2132  THEN v.header_value_string END)
-                ) AS laser_data,
-                COALESCE(
-                    MAX(CASE WHEN v.header_attribute_id = 10101 THEN v.header_value_string END),
-                    MAX(CASE WHEN v.header_attribute_id = 2134  THEN v.header_value_string END)
-                ) AS laser_quality
+                CASE WHEN v.pos_workplace = 'SW3-Laser' THEN
+                    COALESCE(
+                        MAX(CASE WHEN v.header_attribute_id = 10001 THEN v.header_value_string END),
+                        MAX(CASE WHEN v.header_attribute_id = 2132  THEN v.header_value_string END)
+                    )
+                END AS laser_data,
+                CASE WHEN v.pos_workplace = 'SW3-Laser' THEN
+                    COALESCE(
+                        MAX(CASE WHEN v.header_attribute_id = 10101 THEN v.header_value_string END),
+                        MAX(CASE WHEN v.header_attribute_id = 2134  THEN v.header_value_string END)
+                    )
+                END AS laser_quality
             FROM v_traceability_report v
-            GROUP BY
-                v.unique_trace_id,
-                v.obj_current_workplace,
-                v.obj_state_description
+            WHERE v.pos_workplace IS NOT NULL
+            GROUP BY v.unique_trace_id, v.pos_workplace
             HAVING MAX(CASE WHEN v.header_attribute_id = 2131 THEN v.header_value_string END) = %s
             ORDER BY MIN(v.header_creation_time)
         """
@@ -102,7 +108,7 @@ def laser_report(req: func.HttpRequest) -> func.HttpResponse:
         )
 
     except Exception as e:
-        logging.error(f"Error processing laser report: {e}")
+        logging.error(f"Error processing RQT report: {e}")
         return func.HttpResponse(
             json.dumps({"error": str(e)}),
             status_code=500,
